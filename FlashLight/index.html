@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mysterious Flashlight - Fast Blinking with Vibration & Sound</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Mysterious Flashlight</h1>
+    <button id="flashlightBtn">Start Flashing</button>
+
+    <audio id="vibrationSound" loop>
+        <source src="vibration.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+
+    <script>
+
+        let flashlightOn = false;
+        let blinking = false;
+        let stream;
+        let blinkInterval;
+        let recognition;
+        let audioContext, source, vibrationSound; 
+
+        const flashlightBtn = document.getElementById('flashlightBtn');
+
+        flashlightBtn.addEventListener('click', async () => {
+           
+            setupAudioContext(); 
+
+            if (!blinking) {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: { exact: 'environment' } }
+                    });
+
+                    const track = stream.getVideoTracks()[0];
+                    const imageCapture = new ImageCapture(track);
+                    const capabilities = await imageCapture.getPhotoCapabilities();
+
+                    if (capabilities.fillLightMode.includes('flash')) {
+                        fastBlinkFlashlight(track);
+                        startVibration();  
+                        startVoiceRecognition(); 
+                        blinking = true;
+                        flashlightBtn.textContent = 'Say "Yogesh Please Stop" to stop';
+                    }
+                } catch (error) {
+                    console.error('Error accessing the flashlight: ', error);
+                }
+            }
+        });
+
+        function fastBlinkFlashlight(track) {
+            blinkInterval = setInterval(() => {
+                flashlightOn = !flashlightOn;
+                track.applyConstraints({
+                    advanced: [{ torch: flashlightOn }]
+                });
+            }, 200);
+        }
+
+        function startVibration() {
+            if (navigator.vibrate) {
+                navigator.vibrate([200, 100, 200, 100]); 
+            }
+        }
+
+        function stopVibration() {
+            if (navigator.vibrate) {
+                navigator.vibrate(0);  
+            }
+        }
+
+        function setupAudioContext() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            vibrationSound = document.getElementById('vibrationSound');
+            source = audioContext.createMediaElementSource(vibrationSound);
+            source.connect(audioContext.destination);
+            vibrationSound.play();
+        }
+
+        function stopVibrationSound() {
+            if (vibrationSound) {
+                vibrationSound.pause(); 
+                vibrationSound.currentTime = 0;
+            }
+        }
+
+        function stopBlinking(track) {
+            clearInterval(blinkInterval);
+            track.stop();
+            stopVibration();  // Stop the vibration
+            stopVibrationSound();  // Stop the funny sound
+            blinking = false;
+            flashlightBtn.textContent = 'yogesh blessed you';
+        }
+
+        function startVoiceRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+
+            recognition.lang = 'en-US';
+            recognition.continuous = true;  
+            recognition.interimResults = false;
+
+            recognition.start();  
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+                if (transcript === "yogesh please stop") {
+                    const track = stream.getVideoTracks()[0];
+                    stopBlinking(track);
+                    recognition.stop();
+                    alert("yogesh removed your curse");
+                } else {
+                    console.log("Unrecognized phrase, keep listening...");
+                }
+            };
+
+            recognition.onend = () => {
+                if (blinking) {
+                    recognition.start();
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error: ', event.error);
+                if (blinking) {
+                    recognition.start();  
+                }
+            };
+        }
+
+        window.addEventListener('beforeunload', function (e) {
+            e.preventDefault();
+            e.returnValue = '';
+        });
+    </script>
+</body>
+</html>
